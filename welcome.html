@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - Diagnostic Tools</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --card-bg: #f8f9fa;
+            --border-color: #e0e0e0;
+            --hover-bg: #f5f5f5;
+            --link-color: #2196F3;
+            --tool-name-color: #3498db;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #2F3640;
+            --text-color: #ffffff;
+            --card-bg: #374151;
+            --border-color: #4B5563;
+            --hover-bg: #404B5A;
+            --link-color: #60A5FA;
+            --tool-name-color: #60A5FA;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+            margin: 0;
+            transition: all 0.3s ease;
+        }
+
+        .welcome-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+
+        .tool-list {
+            margin-top: 2rem;
+        }
+
+        .tool-item {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .tool-item:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .tool-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--tool-name-color);
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            margin: 0.5rem 0;
+            color: var(--text-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="welcome-container">
+        <h1>Welcome to Diagnostic Tools</h1>
+        <p>This is a collection of web-based utilities designed to help developers with common tasks. Select a tool from the sidebar to get started.</p>
+        
+        <div class="tool-list">
+            <div class="tool-item">
+                <div class="tool-name">📤 File Upload Tool</div>
+                <p>A simple and efficient file upload utility with progress tracking and drag-and-drop support.</p>
+            </div>
+            
+            <div class="tool-item">
+                <div class="tool-name">📝 JSON Log Extractor</div>
+                <p>Extract and format JSON logs with ease. Features newline-delimited output and prettified raw field viewing.</p>
+            </div>
+            
+            <div class="tool-item">
+                <div class="tool-name">🔐 SAML Decoder</div>
+                <p>Decode and format SAML responses. Supports Base64 decoding and XML prettification.</p>
+            </div>
+            
+            <div class="tool-item">
+                <div class="tool-name">📊 HAR Analyzer</div>
+                <p>Analyze HTTP Archive (HAR) files with detailed timing information, headers, and request/response data.</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        function applyTheme() {
+            try {
+                const theme = window.parent.document.documentElement.getAttribute('data-theme');
+                document.documentElement.setAttribute('data-theme', theme || 'light');
+            } catch (e) {
+                const theme = localStorage.getItem('theme') || 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        }
+
+        // Initial theme application
+        document.addEventListener('DOMContentLoaded', () => {
+            applyTheme();
+            
+            // Listen for theme change messages from parent
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'themeChange') {
+                    document.documentElement.setAttribute('data-theme', event.data.theme);
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

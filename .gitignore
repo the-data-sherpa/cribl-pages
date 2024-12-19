@@ -1,0 +1,13 @@
+# Ignore everything
+*
+*/*
+
+# But not these files...
+!*.html
+!diagnostic-tools.tgz
+!.gitignore
+!README.md
+!LICENSE
+
+# Even if they are in subdirectories
+!*/ 

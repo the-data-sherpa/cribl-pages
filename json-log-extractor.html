@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JSON Log Extractor</title>
+    <style>
+        /* CSS variables for light/dark themes */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --card-bg: #f8f9fa;
+            --border-color: #e0e0e0;
+            --hover-bg: #f5f5f5;
+            --button-bg: #4CAF50;
+            --button-hover: #45a049;
+            --tab-active-bg: #2196F3;
+            --tab-inactive-bg: #f8f9fa;
+            --code-bg: #f4f4f4;
+            --error-color: #ff4444;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #2F3640;
+            --text-color: #ffffff;
+            --card-bg: #2F3640;
+            --border-color: #4B5563;
+            --hover-bg: #404B5A;
+            --button-bg: #4CAF50;
+            --button-hover: #45a049;
+            --tab-active-bg: #60A5FA;
+            --tab-inactive-bg: #2F3640;
+            --code-bg: #374151;
+            --error-color: #ff6b6b;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 20px;
+        }
+
+        .code-container {
+            position: relative;
+            margin: 20px 0;
+        }
+
+        .code-block {
+            background-color: var(--code-bg);
+            color: var(--text-color);
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            border: 1px solid var(--border-color);
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            padding: 5px 10px;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .copy-button:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .error {
+            color: var(--error-color);
+        }
+
+        .tab-container {
+            margin: 20px 0;
+        }
+
+        .tab-buttons {
+            margin-bottom: 10px;
+        }
+
+        .tab-button {
+            padding: 8px 16px;
+            cursor: pointer;
+            background-color: var(--tab-inactive-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+        }
+
+        .tab-button.active {
+            background-color: var(--tab-active-bg);
+            color: white;
+            border-color: var(--tab-active-bg);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .raw-value {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        input[type="file"] {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            color: var(--text-color);
+        }
+    </style>
+</head>
+<body>
+    <h2>JSON Log Extractor</h2>
+    <input type="file" id="fileInput" accept=".json">
+    <div class="tab-container">
+        <div class="tab-buttons">
+            <button class="tab-button active" onclick="showTab('raw')">Newline Delimited Output</button>
+            <button class="tab-button" onclick="showTab('pretty')">Prettified Raw Field Output</button>
+        </div>
+        
+        <div id="rawTab" class="tab-content active">
+            <div class="code-container">
+                <button class="copy-button" onclick="copyToClipboard('rawOutput')">Copy</button>
+                <button class="copy-button" style="right: 70px;" onclick="Download('rawOutput')">Download</button>
+                <div id="rawOutput" class="code-block"></div>
+            </div>
+        </div>
+        
+        <div id="prettyTab" class="tab-content">
+            <div class="code-container">
+                <button class="copy-button" onclick="copyToClipboard('prettyOutput')">Copy</button>
+                <button class="copy-button" style="right: 70px;" onclick="Download('prettyOutput')">Download</button>
+                <div id="prettyOutput" class="code-block"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
+            
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+        }
+
+        function copyToClipboard(elementId) {
+            const output = document.getElementById(elementId);
+            const text = output.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const button = output.parentElement.querySelector('.copy-button');
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    let rawResult = '';
+                    let prettyResult = '';
+                    
+                    for (const event of data) {
+                        // Raw output (newline delimited)
+                        rawResult += JSON.stringify(event) + '\n';
+                        
+                        // Display the _raw value directly
+                        if (event._raw) {
+                            prettyResult += `Raw Value:\n${event._raw}\n\n`;
+                        }
+                    }
+                    
+                    document.getElementById('rawOutput').textContent = rawResult;
+                    document.getElementById('prettyOutput').textContent = prettyResult;
+                    document.querySelectorAll('.code-block').forEach(el => el.classList.remove('error'));
+                } catch (error) {
+                    document.querySelectorAll('.code-block').forEach(el => {
+                        el.textContent = `Error: ${error.message}`;
+                        el.classList.add('error');
+                    });
+                }
+            };
+            
+            reader.onerror = function() {
+                document.querySelectorAll('.code-block').forEach(el => {
+                    el.textContent = 'Error reading file';
+                    el.classList.add('error');
+                });
+            };
+            
+            reader.readAsText(file);
+        });
+
+        function Download(elementId) {
+            const data = document.getElementById(elementId).textContent;
+            if(!data) return;
+            const t = document.createElement("a");
+            const e = "data:text/json;charset=utf-8," + encodeURIComponent(data);
+            const o = [
+                "sample-data",
+                new Date(Date.now()).toISOString().replace(/-|:/g, "").split(".")[0],
+            ].join("-");
+
+            t.setAttribute("href", e);
+            t.setAttribute("download", o + ".json");
+            document.body.appendChild(t);
+            t.click();
+            t.remove();
+        }
+
+        // Theme handling
+        function applyTheme() {
+            try {
+                const theme = window.parent.document.documentElement.getAttribute('data-theme');
+                document.documentElement.setAttribute('data-theme', theme || 'light');
+            } catch (e) {
+                const theme = localStorage.getItem('theme') || 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        }
+
+        // Initial theme application
+        document.addEventListener('DOMContentLoaded', () => {
+            applyTheme();
+            
+            // Listen for theme change messages from parent
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'themeChange') {
+                    document.documentElement.setAttribute('data-theme', event.data.theme);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

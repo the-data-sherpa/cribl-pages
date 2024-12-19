@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HAR File Analyzer</title>
+    <style>
+        /* Add CSS variables at the top of your style section */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --card-bg: #f8f9fa;
+            --border-color: #e0e0e0;
+            --hover-bg: #f5f5f5;
+            --selected-border: #2196F3;
+            --success-bg: #f8fff8;
+            --error-bg: #fff8f8;
+            --redirect-bg: #fffaf8;
+            --input-bg: #ffffff;
+            --tab-active-bg: #2196F3;
+            --tab-inactive-bg: #f8f9fa;
+            --search-bg: #ffffff;
+            --checkbox-bg: #ffffff;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #2F3640;          /* Main background */
+            --text-color: #ffffff;
+            --card-bg: #2F3640;          /* Match main background */
+            --border-color: #4B5563;
+            --hover-bg: #404B5A;
+            --selected-border: #60A5FA;
+            --success-bg: #1a2213;       /* Darker green */
+            --error-bg: #2a1515;         /* Darker red */
+            --redirect-bg: #2a2015;      /* Darker orange */
+            --input-bg: #374151;
+            --tab-active-bg: #60A5FA;
+            --tab-inactive-bg: #2F3640;  /* Match main background */
+            --search-bg: #374151;
+            --checkbox-bg: #374151;
+            --timing-blocked: #4B5563;
+            --timing-dns: #60A5FA;
+            --timing-connect: #818CF8;
+            --timing-ssl: #6366F1;
+            --timing-send: #8B5CF6;
+            --timing-wait: #A855F7;
+            --timing-receive: #EC4899;
+        }
+
+        /* Update existing styles to use variables */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        .controls {
+            background: var(--bg-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .entry {
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+        }
+
+        .entry:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .entry.selected {
+            border: 2px solid var(--selected-border);
+        }
+
+        .success { background-color: var(--success-bg); }
+        .error { background-color: var(--error-bg); }
+        .redirect { background-color: var(--redirect-bg); }
+
+        .details-pane {
+            background: var(--card-bg);
+        }
+
+        .context-menu {
+            background: var(--context-menu-bg);
+            color: var(--context-menu-text);
+        }
+
+        .context-menu-item:hover {
+            background: var(--context-menu-hover);
+        }
+
+        .context-menu-separator {
+            background: var(--context-menu-separator);
+        }
+
+        /* Add styles for inputs and buttons */
+        input, select {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-button {
+            background: var(--tab-inactive-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-button:hover {
+            background: var(--hover-bg);
+        }
+
+        .tab-button.active {
+            background: var(--tab-active-bg);
+            color: white;
+        }
+
+        pre {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            background: white;
+            padding: 20px;
+            z-index: 1000;
+            border-bottom: 1px solid #ccc;
+            width: 100%;
+        }
+        
+        .status-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .status-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .main-content {
+            display: flex;
+            gap: 20px;
+            padding-top: 20px;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+        
+        .requests-pane {
+            width: 50%;
+            min-width: 0;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .details-pane {
+            width: 50%;
+            min-width: 0;
+            position: sticky;
+            top: calc(20px + 80px);
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .details-pane.visible {
+            display: block;
+        }
+        
+        .entry {
+            border: 1px solid #ccc;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            word-break: normal;
+        }
+        
+        .entry:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .entry.selected {
+            border: 2px solid #2196F3;
+        }
+        
+        .success { background-color: #e6ffe6; }
+        .error { background-color: #ffe6e6; }
+        .redirect { background-color: #fff3e6; }
+        
+        .search-box {
+            min-width: 300px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            flex: 1;
+            max-width: 500px;
+        }
+        
+        .timing-bar {
+            height: 20px;
+            background: var(--card-bg);
+            margin-top: 5px;
+            position: relative;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .timing-segment {
+            position: absolute;
+            height: 100%;
+            top: 0;
+            transition: opacity 0.2s;
+            opacity: 0.8;
+        }
+        
+        .timing-segment:hover {
+            opacity: 0.8;
+        }
+        
+        .timing-blocked { background: var(--timing-blocked); }
+        .timing-dns { background: var(--timing-dns); }
+        .timing-connect { background: var(--timing-connect); }
+        .timing-ssl { background: var(--timing-ssl); }
+        .timing-send { background: var(--timing-send); }
+        .timing-wait { background: var(--timing-wait); }
+        .timing-receive { background: var(--timing-receive); }
+        
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-width: 100%;
+        }
+        
+        .url-container {
+            max-width: calc(100% - 200px);
+            display: inline-block;
+            overflow-x: auto;
+            white-space: nowrap;
+            vertical-align: middle;
+            scrollbar-width: thin;
+            scrollbar-height: thin;
+            -ms-overflow-style: -ms-autohiding-scrollbar;
+        }
+        
+        .url-container::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .url-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .url-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .url-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        .status-container {
+            float: right;
+            min-width: 80px;
+            text-align: right;
+        }
+        
+        .tabs {
+            margin-top: 20px;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            gap: 2px;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 20px;
+        }
+        
+        .tab-button {
+            padding: 8px 16px;
+            border: none;
+            background: #f0f0f0;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+        }
+        
+        .tab-button:hover {
+            background: #e0e0e0;
+        }
+        
+        .tab-button.active {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .match-indicator {
+            margin-left: 8px;
+            color: #2196F3;
+            font-size: 0.9em;
+        }
+        
+        .highlight {
+            background-color: yellow;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 1200px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .requests-pane,
+            .details-pane {
+                width: 100%;
+            }
+            
+            .details-pane {
+                position: static;
+                max-height: 50vh;
+            }
+        }
+        
+        .context-menu {
+            position: fixed;
+            background: #333;
+            color: white;
+            padding: 8px 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 1000;
+        }
+        
+        .context-menu-item {
+            padding: 8px 20px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        
+        .context-menu-item:hover {
+            background: #444;
+        }
+        
+        .context-menu-separator {
+            height: 1px;
+            background: #555;
+            margin: 8px 0;
+        }
+
+        /* Update controls panel to match main background */
+        [data-theme="dark"] .controls {
+            background-color: var(--bg-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Update details pane to match main background */
+        [data-theme="dark"] .details-pane {
+            background-color: var(--bg-color);
+        }
+
+        /* Ensure entries have proper contrast in dark mode */
+        [data-theme="dark"] .entry {
+            border: 1px solid var(--border-color);
+        }
+
+        /* Update pre blocks in dark mode */
+        [data-theme="dark"] pre {
+            background-color: #374151;  /* Slightly lighter for contrast */
+        }
+
+        /* Request entries - keep text black in dark mode */
+        [data-theme="dark"] .entry {
+            border: 1px solid var(--border-color);
+            color: #333333;  /* Keep text black */
+        }
+
+        [data-theme="dark"] .url-container {
+            color: #333333;  /* Keep URL text black */
+        }
+
+        [data-theme="dark"] .status-container {
+            color: #333333;  /* Keep status text black */
+        }
+
+        /* Tab headers - keep black in dark mode */
+        [data-theme="dark"] .tab-button {
+            color: #333333;
+        }
+
+        [data-theme="dark"] .tab-button.active {
+            background: var(--tab-active-bg);
+            color: white;  /* Keep active tab text white for contrast */
+        }
+
+        /* Details panel content - white text in dark mode */
+        [data-theme="dark"] .details-pane {
+            background-color: var(--bg-color);
+            color: var(--text-color);  /* White text */
+        }
+
+        [data-theme="dark"] .tab-content {
+            color: var(--text-color);  /* White text */
+        }
+
+        [data-theme="dark"] pre {
+            background-color: #374151;
+            color: var(--text-color);  /* White text */
+        }
+
+        [data-theme="dark"] .details-pane h1,
+        [data-theme="dark"] .details-pane h2,
+        [data-theme="dark"] .details-pane h3,
+        [data-theme="dark"] .details-pane h4,
+        [data-theme="dark"] .details-pane h5,
+        [data-theme="dark"] .details-pane h6 {
+            color: var(--text-color);  /* White text */
+        }
+
+        .filter-label {
+            color: var(--text-color);
+            font-weight: 500;
+            margin-bottom: 5px;
+            width: 100%;  /* Make it take full width above the checkboxes */
+        }
+    </style>
+
+    <!-- Add this script section just before the closing </head> tag -->
+    <script>
+        // Theme handling
+        function applyTheme() {
+            try {
+                // Try to get theme from parent window
+                const theme = window.parent.document.documentElement.getAttribute('data-theme');
+                document.documentElement.setAttribute('data-theme', theme || 'light');
+            } catch (e) {
+                // If we can't access parent window, try localStorage or default to light
+                const theme = localStorage.getItem('theme') || 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        }
+
+        // Initial theme application
+        document.addEventListener('DOMContentLoaded', () => {
+            applyTheme();
+            
+            // Listen for theme change messages from parent
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'themeChange') {
+                    document.documentElement.setAttribute('data-theme', event.data.theme);
+                }
+            });
+        });
+
+        // Function to be called from parent window
+        function toggleTheme() {
+            applyTheme();
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>HAR File Analyzer</h1>
+        
+        <div class="controls">
+            <input type="file" id="harFile" accept=".har">
+            <input type="text" id="searchInput" class="search-box" placeholder="Search requests...">
+            
+            <div class="status-filters">
+                <div class="filter-label">Filter by Response Code</div>
+                <label class="status-checkbox"><input type="checkbox" name="status" value="0" checked> 0</label>
+                <label class="status-checkbox"><input type="checkbox" name="status" value="1xx" checked> 1xx</label>
+                <label class="status-checkbox"><input type="checkbox" name="status" value="2xx" checked> 2xx</label>
+                <label class="status-checkbox"><input type="checkbox" name="status" value="3xx" checked> 3xx</label>
+                <label class="status-checkbox"><input type="checkbox" name="status" value="4xx" checked> 4xx</label>
+                <label class="status-checkbox"><input type="checkbox" name="status" value="5xx" checked> 5xx</label>
+            </div>
+            
+            <select id="grouping">
+                <option value="none">All entries</option>
+                <option value="page">Group by pages</option>
+            </select>
+        </div>
+
+        <div class="main-content">
+            <div class="requests-pane" id="results"></div>
+            <div class="details-pane" id="details">
+                <p>Select a request to view details</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" data-action="copyUrl">Copy URL</div>
+        <div class="context-menu-item" data-action="copyCurl">Copy as cURL</div>
+        <div class="context-menu-item" data-action="copyPowershell">Copy as PowerShell</div>
+        <div class="context-menu-item" data-action="copyFetch">Copy as fetch</div>
+        <div class="context-menu-item" data-action="copyFetchNode">Copy as fetch (Node.js)</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="copyResponse">Copy response</div>
+        <div class="context-menu-item" data-action="copyStackTrace">Copy stack trace</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="copyAllUrls">Copy all listed URLs</div>
+        <div class="context-menu-item" data-action="copyAllCurl">Copy all listed as cURL</div>
+        <div class="context-menu-item" data-action="copyAllPowershell">Copy all listed as PowerShell</div>
+        <div class="context-menu-item" data-action="copyAllFetch">Copy all listed as fetch</div>
+        <div class="context-menu-item" data-action="copyAllFetchNode">Copy all listed as fetch (Node.js)</div>
+        <div class="context-menu-item" data-action="copyAllHar">Copy all listed as HAR (sanitized)</div>
+    </div>
+
+    <script>
+        let harData = null;
+        
+        document.getElementById('harFile').addEventListener('change', handleFileSelect);
+        document.getElementById('grouping').addEventListener('change', updateDisplay);
+        document.getElementById('searchInput').addEventListener('input', updateDisplay);
+        document.querySelectorAll('input[name="status"]').forEach(checkbox => {
+            checkbox.addEventListener('change', updateDisplay);
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    harData = JSON.parse(e.target.result);
+                    updateDisplay();
+                } catch (error) {
+                    alert('Error parsing HAR file: ' + error);
+                }
+            };
+            
+            reader.readAsText(file);
+        }
+
+        function updateDisplay() {
+            if (!harData) return;
+            
+            const grouping = document.getElementById('grouping').value;
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            
+            if (grouping === 'page') {
+                const pages = {};
+                harData.log.entries.forEach(entry => {
+                    const pageRef = entry.pageref || 'Unknown Page';
+                    if (!pages[pageRef]) pages[pageRef] = [];
+                    pages[pageRef].push(entry);
+                });
+                
+                for (const [page, entries] of Object.entries(pages)) {
+                    const pageDiv = document.createElement('div');
+                    pageDiv.innerHTML = `<h2>${page}</h2>`;
+                    pageDiv.appendChild(createEntriesList(entries));
+                    resultsDiv.appendChild(pageDiv);
+                }
+            } else {
+                resultsDiv.appendChild(createEntriesList(harData.log.entries));
+            }
+        }
+
+        function showDetails(entry, harStartTime, searchTerm = '') {
+            const detailsPane = document.getElementById('details');
+            const relativeTime = getRelativeTime(entry.startedDateTime, harStartTime);
+            
+            const formatHeaders = (headers) => {
+                // Sort headers to put HTTP/2 pseudo-headers first
+                const sortedHeaders = headers.sort((a, b) => {
+                    const aIsPseudo = a.name.startsWith(':');
+                    const bIsPseudo = b.name.startsWith(':');
+                    if (aIsPseudo && !bIsPseudo) return -1;
+                    if (!aIsPseudo && bIsPseudo) return 1;
+                    return a.name.localeCompare(b.name);
+                });
+
+                return sortedHeaders
+                    .map(h => {
+                        const headerText = `${h.name}: ${h.value}`;
+                        return searchTerm ? highlightText(headerText, searchTerm) : headerText;
+                    })
+                    .join('\n');
+            };
+
+            const formatContent = (content) => {
+                if (!content || !content.text) return 'No content';
+                let text = content.text;
+                try {
+                    const parsed = JSON.parse(content.text);
+                    text = JSON.stringify(parsed, null, 2);
+                } catch {
+                    // If not JSON, use text as-is
+                }
+                return searchTerm ? highlightText(text, searchTerm) : text;
+            };
+
+            const formatPostData = (postData) => {
+                if (!postData) return 'No post data';
+                if (postData.text) {
+                    try {
+                        const parsed = JSON.parse(postData.text);
+                        const text = JSON.stringify(parsed, null, 2);
+                        return searchTerm ? highlightText(text, searchTerm) : text;
+                    } catch {
+                        return searchTerm ? highlightText(postData.text, searchTerm) : postData.text;
+                    }
+                }
+                if (postData.params) {
+                    return postData.params
+                        .map(param => {
+                            const text = `${param.name}: ${param.value}`;
+                            return searchTerm ? highlightText(text, searchTerm) : text;
+                        })
+                        .join('\n');
+                }
+                return 'No post data';
+            };
+
+            const formatQueryParams = (queryString) => {
+                if (!queryString || !queryString.length) return 'No query parameters';
+                return queryString
+                    .map(param => {
+                        const text = `${param.name}: ${param.value}`;
+                        return searchTerm ? highlightText(text, searchTerm) : text;
+                    })
+                    .join('\n');
+            };
+
+            const formatCookies = (cookies) => {
+                if (!cookies || !cookies.length) return 'No cookies';
+                return cookies
+                    .map(cookie => {
+                        const text = `${cookie.name}: ${cookie.value}`;
+                        return searchTerm ? highlightText(text, searchTerm) : text;
+                    })
+                    .join('\n');
+            };
+
+            // Format the date in a human-readable way
+            const startDate = new Date(entry.startedDateTime);
+            const formattedTime = startDate.toLocaleTimeString('en-US', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                fractionalSecondDigits: 3
+            });
+
+            // Format timing value helper function
+            const formatTiming = (value) => {
+                if (value === -1) return "Does not apply";
+                return `${value || 0}ms`;
+            };
+
+            // Add HTTP/2 specific information to the request tab
+            const http2Info = entry._http2 || entry._http2_info || {}; // Different HAR exporters use different keys
+            const isHttp2 = entry.request.httpVersion === 'HTTP/2.0' || 
+                            entry.response.httpVersion === 'HTTP/2.0' ||
+                            entry.request.httpVersion === 'h2' ||
+                            entry.response.httpVersion === 'h2';
+
+            const http2Details = isHttp2 ? `
+HTTP/2 Information:
+Stream ID: ${http2Info.streamId || 'N/A'}
+Stream Weight: ${http2Info.weight || 'N/A'}
+Parent Stream: ${http2Info.parentStreamId || 'N/A'}
+Frame Size: ${http2Info.frameSize || 'N/A'}
+Frame Count: ${http2Info.frameCount || 'N/A'}` : '';
+
+            // Create tabs structure
+            const tabsHtml = `
+                <div class="tabs">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" data-tab="request">Request</button>
+                        ${entry.request.postData ? '<button class="tab-button" data-tab="postData">Post Data</button>' : ''}
+                        <button class="tab-button" data-tab="response">Response</button>
+                        ${entry.response.content?.text ? '<button class="tab-button" data-tab="content">Response Content</button>' : ''}
+                        ${entry.request.cookies.length || entry.response.cookies.length ? '<button class="tab-button" data-tab="cookies">Cookies</button>' : ''}
+                        <button class="tab-button" data-tab="timings">Timings</button>
+                    </div>
+
+                    <div class="tab-content active" id="request">
+                        <h3>${entry.request.method} ${entry.request.url}</h3>
+                        <h4>General:</h4>
+                        <pre>
+Request URL: ${entry.request.url}
+Request Method: ${entry.request.method}
+Remote Address: ${entry.serverIPAddress || 'N/A'}
+HTTP Version: ${entry.request.httpVersion}
+Started: ${relativeTime} into capture
+${isHttp2 ? http2Details : ''}
+                        </pre>
+
+                        <h4>Request Headers:</h4>
+                        <pre>${formatHeaders(entry.request.headers)}</pre>
+
+                        <h4>Query Parameters:</h4>
+                        <pre>${formatQueryParams(entry.request.queryString)}</pre>
+                    </div>
+
+                    ${entry.request.postData ? `
+                        <div class="tab-content" id="postData">
+                            <h4>Post Data:</h4>
+                            <pre>${formatPostData(entry.request.postData)}</pre>
+                        </div>
+                    ` : ''}
+
+                    <div class="tab-content" id="response">
+                        <h4>Status: ${entry.response.status} ${entry.response.statusText || ''}</h4>
+                        <pre>
+Status Code: ${entry.response.status} ${entry.response.statusText || ''}
+HTTP Version: ${entry.response.httpVersion}
+                        </pre>
+
+                        <h4>Response Headers:</h4>
+                        <pre>${formatHeaders(entry.response.headers)}</pre>
+                    </div>
+
+                    ${entry.response.content?.text ? `
+                        <div class="tab-content" id="content">
+                            <h4>Response Content:</h4>
+                            <pre>${formatContent(entry.response.content)}</pre>
+                        </div>
+                    ` : ''}
+
+                    ${entry.request.cookies.length || entry.response.cookies.length ? `
+                        <div class="tab-content" id="cookies">
+                            ${entry.request.cookies.length ? `
+                                <h4>Request Cookies:</h4>
+                                <pre>${formatCookies(entry.request.cookies)}</pre>
+                            ` : ''}
+                            ${entry.response.cookies.length ? `
+                                <h4>Response Cookies:</h4>
+                                <pre>${formatCookies(entry.response.cookies)}</pre>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+
+                    <div class="tab-content" id="timings">
+                        <h4>Timing Breakdown:</h4>
+                        ${createTimingBar(entry.timings, entry.time)}
+                        <pre>
+Start time: ${formattedTime}
+Blocked: ${formatTiming(entry.timings.blocked)}
+DNS: ${formatTiming(entry.timings.dns)}
+Connect: ${formatTiming(entry.timings.connect)}
+SSL: ${formatTiming(entry.timings.ssl)}
+Send: ${formatTiming(entry.timings.send)}
+Wait: ${formatTiming(entry.timings.wait)}
+Receive: ${formatTiming(entry.timings.receive)}
+Total: ${entry.time.toFixed(2)}ms
+                        </pre>
+                    </div>
+                </div>
+            `;
+
+            detailsPane.innerHTML = tabsHtml;
+
+            // Add tab switching functionality
+            detailsPane.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    // Remove active class from all tabs and contents
+                    detailsPane.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                    detailsPane.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    // Add active class to clicked tab and corresponding content
+                    button.classList.add('active');
+                    const tabId = button.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+        }
+
+        function createEntriesList(entries) {
+            const div = document.createElement('div');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const harStartTime = new Date(entries[0].startedDateTime).getTime();
+            
+            entries.forEach(entry => {
+                const status = entry.response.status;
+                if (!shouldShowEntry(status, entry)) return;
+                
+                const entryDiv = document.createElement('div');
+                entryDiv.className = `entry ${getStatusClass(status)}`;
+                
+                const timingBar = createTimingBar(entry.timings, entry.time);
+                
+                // Format the start time
+                const startDate = new Date(entry.startedDateTime);
+                const formattedTime = startDate.toLocaleTimeString('en-US', { 
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    fractionalSecondDigits: 3
+                });
+
+                // Add an indicator if the match was found in content/body
+                let matchLocation = '';
+                if (searchTerm) {
+                    if (entry.request.postData?.text?.toLowerCase().includes(searchTerm)) {
+                        matchLocation = '<span class="match-indicator">[Match in Post Data]</span>';
+                    } else if (entry.response.content?.text?.toLowerCase().includes(searchTerm)) {
+                        matchLocation = '<span class="match-indicator">[Match in Response]</span>';
+                    }
+                }
+                
+                entryDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <strong>${entry.request.method}</strong> 
+                        <span class="url-container" title="${entry.request.url}">
+                            ${searchTerm ? highlightText(entry.request.url, searchTerm) : entry.request.url}
+                        </span>
+                        <span class="status-container">
+                            ${status} ${entry.response.statusText || ''}
+                        </span>
+                        ${matchLocation}
+                    </div>
+                    <div>Time: ${entry.time.toFixed(2)}ms (started at ${formattedTime})</div>
+                    ${timingBar}
+                `;
+                
+                entryDiv.addEventListener('click', () => {
+                    document.querySelectorAll('.entry').forEach(e => e.classList.remove('selected'));
+                    entryDiv.classList.add('selected');
+                    const detailsPane = document.getElementById('details');
+                    detailsPane.classList.add('visible');
+                    showDetails(entry, harStartTime, searchTerm);
+                });
+                
+                div.appendChild(entryDiv);
+            });
+            
+            return div;
+        }
+
+        function createTimingBar(timings, totalTime) {
+            const segments = [
+                { name: 'blocked', color: '#a0a0a0', description: 'Time spent in a queue waiting for a network connection' },
+                { name: 'dns', color: '#ffd700', description: 'DNS resolution time' },
+                { name: 'connect', color: '#ff8c00', description: 'Time to create TCP connection' },
+                { name: 'ssl', color: '#87ceeb', description: 'Time for SSL/TLS negotiation' },
+                { name: 'send', color: '#98fb98', description: 'Time to send HTTP request' },
+                { name: 'wait', color: '#dda0dd', description: 'Waiting for server response (TTFB)' },
+                { name: 'receive', color: '#87cefa', description: 'Time to receive HTTP response' }
+            ];
+
+            let html = '<div class="timing-bar">';
+            let currentPosition = 0;
+
+            segments.forEach(segment => {
+                const time = timings[segment.name] || 0;
+                if (time > 0) {
+                    const width = (time / totalTime) * 100;
+                    html += `
+                        <div class="timing-segment timing-${segment.name}"
+                             style="left: ${currentPosition}%; width: ${width}%"
+                             title="${segment.name}: ${time.toFixed(2)}ms
+${segment.description}"></div>
+                    `;
+                    currentPosition += width;
+                }
+            });
+
+            html += '</div>';
+            return html;
+        }
+
+        function shouldShowEntry(status, entry) {
+            // First check status code filters
+            const checkboxes = document.querySelectorAll('input[name="status"]:checked');
+            const selectedFilters = Array.from(checkboxes).map(cb => cb.value);
+            
+            const statusMatch = status === 0 ? 
+                selectedFilters.includes('0') : 
+                selectedFilters.includes(`${Math.floor(status / 100)}xx`);
+            
+            if (!statusMatch) return false;
+
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            if (!searchTerm) return true;
+
+            // Search through URL, method, and status
+            if (entry.request.url.toLowerCase().includes(searchTerm) ||
+                entry.request.method.toLowerCase().includes(searchTerm) ||
+                status.toString().includes(searchTerm)) {
+                return true;
+            }
+
+            // Search through request headers
+            if (entry.request.headers.some(h => 
+                h.name.toLowerCase().includes(searchTerm) || 
+                h.value.toLowerCase().includes(searchTerm)
+            )) return true;
+
+            // Search through response headers
+            if (entry.response.headers.some(h => 
+                h.name.toLowerCase().includes(searchTerm) || 
+                h.value.toLowerCase().includes(searchTerm)
+            )) return true;
+
+            // Search through query parameters
+            if (entry.request.queryString && entry.request.queryString.some(q =>
+                q.name.toLowerCase().includes(searchTerm) ||
+                q.value.toLowerCase().includes(searchTerm)
+            )) return true;
+
+            // Search through post data
+            if (entry.request.postData) {
+                if (entry.request.postData.text && 
+                    entry.request.postData.text.toLowerCase().includes(searchTerm)) {
+                    return true;
+                }
+                if (entry.request.postData.params && entry.request.postData.params.some(p =>
+                    p.name.toLowerCase().includes(searchTerm) ||
+                    p.value.toLowerCase().includes(searchTerm)
+                )) return true;
+            }
+
+            // Search through response content
+            if (entry.response.content && entry.response.content.text &&
+                entry.response.content.text.toLowerCase().includes(searchTerm)) {
+                return true;
+            }
+
+            // Search through cookies
+            if (entry.request.cookies && entry.request.cookies.some(c =>
+                c.name.toLowerCase().includes(searchTerm) ||
+                c.value.toLowerCase().includes(searchTerm)
+            )) return true;
+
+            if (entry.response.cookies && entry.response.cookies.some(c =>
+                c.name.toLowerCase().includes(searchTerm) ||
+                c.value.toLowerCase().includes(searchTerm)
+            )) return true;
+
+            return false;
+        }
+
+        function getStatusClass(status) {
+            // HTTP/2 specific error codes are in the range 0x0..0x8
+            if (typeof status === 'string' && status.startsWith('0x')) {
+                return 'error';
+            }
+            const statusGroup = Math.floor(status / 100);
+            if (statusGroup === 2) return 'success';
+            if (statusGroup === 3) return 'redirect';
+            return 'error';
+        }
+
+        function formatQueryParams(queryString) {
+            if (!queryString || !queryString.length) return 'No query parameters';
+            return queryString
+                .map(param => `${param.name}: ${param.value}`)
+                .join('\n');
+        }
+
+        function formatPostData(postData) {
+            if (!postData) return 'No post data';
+            if (postData.text) {
+                try {
+                    // Try to parse and prettify JSON
+                    const parsed = JSON.parse(postData.text);
+                    return JSON.stringify(parsed, null, 2);
+                } catch {
+                    // If not JSON, return as-is
+                    return postData.text;
+                }
+            }
+            if (postData.params) {
+                return postData.params
+                    .map(param => `${param.name}: ${param.value}`)
+                    .join('\n');
+            }
+            return 'No post data';
+        }
+
+        function formatContent(content) {
+            if (!content || !content.text) return 'No content';
+            let text = content.text;
+            try {
+                // Try to parse and prettify JSON
+                const parsed = JSON.parse(content.text);
+                text = JSON.stringify(parsed, null, 2);
+            } catch {
+                // If not JSON, use text as-is
+            }
+            return searchTerm ? highlightText(text, searchTerm) : text;
+        }
+
+        function formatCookies(cookies) {
+            if (!cookies || !cookies.length) return 'No cookies';
+            return cookies
+                .map(cookie => `${cookie.name}: ${cookie.value}`)
+                .join('\n');
+        }
+
+        // Add this function to calculate relative time
+        function getRelativeTime(startedDateTime, harStartTime) {
+            const entryTime = new Date(startedDateTime).getTime();
+            const relativeMs = entryTime - harStartTime;
+            return (relativeMs / 1000).toFixed(3) + 's';
+        }
+
+        // Helper function to highlight text
+        function highlightText(text, searchTerm) {
+            if (!searchTerm) return text;
+            const regex = new RegExp(`(${searchTerm})`, 'gi');
+            return text.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        let selectedEntry = null;
+
+        document.addEventListener('contextmenu', function(e) {
+            const entry = e.target.closest('.entry');
+            if (entry) {
+                e.preventDefault();
+                selectedEntry = entry;
+                const contextMenu = document.getElementById('contextMenu');
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = e.pageX + 'px';
+                contextMenu.style.top = e.pageY + 'px';
+            }
+        });
+
+        document.addEventListener('click', function() {
+            document.getElementById('contextMenu').style.display = 'none';
+        });
+
+        document.querySelectorAll('.context-menu-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                const action = this.dataset.action;
+                handleContextMenuAction(action, selectedEntry);
+            });
+        });
+
+        function handleContextMenuAction(action, entry) {
+            if (!entry) {
+                console.error('No entry selected');
+                return;
+            }
+
+            let copyText = '';
+            const entryData = getEntryData(entry);
+
+            try {
+                switch(action) {
+                    case 'copyUrl':
+                        copyText = entryData?.request?.url || 'Error: No URL available';
+                        break;
+                    case 'copyCurl':
+                        copyText = generateCurl(entryData);
+                        break;
+                    case 'copyPowershell':
+                        copyText = generatePowershell(entryData);
+                        break;
+                    case 'copyFetch':
+                        copyText = generateFetch(entryData);
+                        break;
+                    case 'copyFetchNode':
+                        copyText = generateFetchNode(entryData);
+                        break;
+                    case 'copyResponse':
+                        copyText = entryData?.response?.content ? 
+                            JSON.stringify(entryData.response.content, null, 2) : 
+                            'Error: No response content available';
+                        break;
+                    case 'copyStackTrace':
+                        copyText = entryData?._stackTrace || 'No stack trace available';
+                        break;
+                    case 'copyAllUrls':
+                        copyText = getAllUrls();
+                        break;
+                    case 'copyAllCurl':
+                        copyText = generateAllCurl();
+                        break;
+                    case 'copyAllPowershell':
+                        copyText = generateAllPowershell();
+                        break;
+                    case 'copyAllFetch':
+                        copyText = generateAllFetch();
+                        break;
+                    case 'copyAllFetchNode':
+                        copyText = generateAllFetchNode();
+                        break;
+                    case 'copyAllHar':
+                        copyText = generateSanitizedHar();
+                        break;
+                    default:
+                        copyText = 'Error: Unknown action';
+                }
+
+                navigator.clipboard.writeText(copyText).then(() => {
+                    // Optional: Add a toast notification here
+                }).catch(err => {
+                    console.error('Failed to copy:', err);
+                });
+            } catch (error) {
+                console.error('Error handling context menu action:', error);
+            }
+        }
+
+        function generateCurl(entry) {
+            if (!entry || !entry.request) return 'Error: No request data available';
+            
+            let curl = `curl -X ${entry.request.method} '${entry.request.url}'`;
+            
+            if (entry.request.headers) {
+                entry.request.headers.forEach(header => {
+                    curl += `\n  -H '${header.name}: ${header.value}'`;
+                });
+            }
+            
+            if (entry.request.postData) {
+                if (entry.request.postData.text) {
+                    curl += `\n  -d '${entry.request.postData.text}'`;
+                } else if (entry.request.postData.params) {
+                    const params = entry.request.postData.params
+                        .map(p => `${encodeURIComponent(p.name)}=${encodeURIComponent(p.value)}`)
+                        .join('&');
+                    curl += `\n  -d '${params}'`;
+                }
+            }
+            
+            return curl;
+        }
+
+        function generatePowershell(entry) {
+            if (!entry || !entry.request) return 'Error: No request data available';
+            
+            let ps = `$response = Invoke-WebRequest -Uri '${entry.request.url}' -Method ${entry.request.method}`;
+            
+            if (entry.request.headers && entry.request.headers.length > 0) {
+                ps += `\n$headers = @{\n`;
+                entry.request.headers.forEach(header => {
+                    ps += `    '${header.name}' = '${header.value}'\n`;
+                });
+                ps += `}\n`;
+                ps += `-Headers $headers`;
+            }
+            
+            if (entry.request.postData) {
+                if (entry.request.postData.text) {
+                    ps += `\n-Body '${entry.request.postData.text}'`;
+                } else if (entry.request.postData.params) {
+                    const params = entry.request.postData.params
+                        .map(p => `${encodeURIComponent(p.name)}=${encodeURIComponent(p.value)}`)
+                        .join('&');
+                    ps += `\n-Body '${params}'`;
+                }
+            }
+            
+            return ps;
+        }
+
+        function generateFetch(entry) {
+            if (!entry || !entry.request) return 'Error: No request data available';
+            
+            let options = {
+                method: entry.request.method,
+                headers: {}
+            };
+            
+            if (entry.request.headers) {
+                entry.request.headers.forEach(header => {
+                    options.headers[header.name] = header.value;
+                });
+            }
+            
+            if (entry.request.postData) {
+                if (entry.request.postData.text) {
+                    options.body = entry.request.postData.text;
+                } else if (entry.request.postData.params) {
+                    const params = entry.request.postData.params
+                        .map(p => `${encodeURIComponent(p.name)}=${encodeURIComponent(p.value)}`)
+                        .join('&');
+                    options.body = params;
+                }
+            }
+            
+            return `fetch('${entry.request.url}', ${JSON.stringify(options, null, 2)})
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(error => console.error('Error:', error));`;
+        }
+
+        function generateFetchNode(entry) {
+            if (!entry || !entry.request) return 'Error: No request data available';
+            
+            let options = {
+                method: entry.request.method,
+                headers: {}
+            };
+            
+            if (entry.request.headers) {
+                entry.request.headers.forEach(header => {
+                    options.headers[header.name] = header.value;
+                });
+            }
+            
+            if (entry.request.postData) {
+                if (entry.request.postData.text) {
+                    options.body = entry.request.postData.text;
+                } else if (entry.request.postData.params) {
+                    const params = entry.request.postData.params
+                        .map(p => `${encodeURIComponent(p.name)}=${encodeURIComponent(p.value)}`)
+                        .join('&');
+                    options.body = params;
+                }
+            }
+            
+            return `import fetch from 'node-fetch';
+
+fetch('${entry.request.url}', ${JSON.stringify(options, null, 2)})
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(error => console.error('Error:', error));`;
+        }
+
+        function getAllUrls() {
+            const entries = document.querySelectorAll('.entry');
+            return Array.from(entries)
+                .map(entry => {
+                    const urlContainer = entry.querySelector('.url-container');
+                    return urlContainer.textContent.trim();
+                })
+                .join('\n');
+        }
+
+        function getEntryData(entryElement) {
+            if (!entryElement || !harData || !harData.log || !harData.log.entries) {
+                return null;
+            }
+            const url = entryElement.querySelector('.url-container')?.textContent.trim();
+            if (!url) return null;
+            return harData.log.entries.find(entry => entry.request.url === url);
+        }
+
+        function generateAllCurl() {
+            const entries = document.querySelectorAll('.entry');
+            return Array.from(entries)
+                .map(entry => generateCurl(getEntryData(entry)))
+                .join('\n\n');
+        }
+
+        function generateAllPowershell() {
+            const entries = document.querySelectorAll('.entry');
+            return Array.from(entries)
+                .map(entry => generatePowershell(getEntryData(entry)))
+                .join('\n\n');
+        }
+
+        function generateAllFetch() {
+            const entries = document.querySelectorAll('.entry');
+            return Array.from(entries)
+                .map(entry => generateFetch(getEntryData(entry)))
+                .join('\n\n');
+        }
+
+        function generateAllFetchNode() {
+            const entries = document.querySelectorAll('.entry');
+            return Array.from(entries)
+                .map(entry => generateFetchNode(getEntryData(entry)))
+                .join('\n\n');
+        }
+
+        function generateSanitizedHar() {
+            if (!harData || !harData.log || !harData.log.entries) {
+                return 'Error: No HAR data available';
+            }
+
+            const entries = document.querySelectorAll('.entry');
+            const sanitizedEntries = Array.from(entries)
+                .map(entry => {
+                    const harEntry = getEntryData(entry);
+                    if (!harEntry) return null;
+                    
+                    // Deep clone the entry
+                    const sanitized = JSON.parse(JSON.stringify(harEntry));
+                    
+                    // Remove sensitive headers
+                    const sensitiveHeaders = ['cookie', 'authorization', 'proxy-authorization'];
+                    if (sanitized.request && sanitized.request.headers) {
+                        sanitized.request.headers = sanitized.request.headers.filter(
+                            h => !sensitiveHeaders.includes(h.name.toLowerCase())
+                        );
+                    }
+                    if (sanitized.response && sanitized.response.headers) {
+                        sanitized.response.headers = sanitized.response.headers.filter(
+                            h => !sensitiveHeaders.includes(h.name.toLowerCase())
+                        );
+                    }
+                    
+                    // Remove cookies
+                    if (sanitized.request) sanitized.request.cookies = [];
+                    if (sanitized.response) sanitized.response.cookies = [];
+                    
+                    return sanitized;
+                })
+                .filter(entry => entry !== null);
+            
+            return JSON.stringify({
+                log: {
+                    version: harData.log.version,
+                    creator: harData.log.creator,
+                    entries: sanitizedEntries
+                }
+            }, null, 2);
+        }
+    </script>
+</body>
+</html>

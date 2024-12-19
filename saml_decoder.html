@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SAML Response Decoder</title>
+    <style>
+        /* CSS variables for light/dark themes */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --card-bg: #f8f9fa;
+            --border-color: #e0e0e0;
+            --button-bg: #4CAF50;
+            --button-hover: #45a049;
+            --output-bg: #f5f5f5;
+            --input-bg: #ffffff;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #2F3640;
+            --text-color: #ffffff;
+            --card-bg: #374151;
+            --border-color: #4B5563;
+            --button-bg: #4CAF50;
+            --button-hover: #45a049;
+            --output-bg: #374151;
+            --input-bg: #374151;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            margin: 10px 0;
+            padding: 10px;
+            font-family: monospace;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        #output {
+            white-space: pre-wrap;
+            background-color: var(--output-bg);
+            color: var(--text-color);
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: var(--button-hover);
+        }
+
+        .button-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>SAML Response Decoder</h1>
+    <p>Paste your encoded SAML response below:</p>
+    <textarea id="input" placeholder="Paste your Base64 encoded SAML response here..."></textarea>
+    <button onclick="decodeSAML()">Decode SAML</button>
+    <h2>Decoded Result:</h2>
+    <div class="button-group">
+        <button onclick="copyToClipboard()">Copy to Clipboard</button>
+        <button onclick="selectAll()">Select All</button>
+    </div>
+    <div id="output"></div>
+
+    <script>
+        function decodeSAML() {
+            const input = document.getElementById('input').value.trim();
+            const output = document.getElementById('output');
+            
+            try {
+                // First, decode from Base64
+                let decoded = atob(input);
+                
+                // If the result starts with deflate bytes, it's likely compressed
+                if (decoded.charAt(0) === '<') {
+                    // Already XML, no inflation needed
+                    formatAndDisplay(decoded);
+                } else {
+                    // Alert user that inflation is not supported in this basic version
+                    output.innerHTML = 'Note: This decoder only handles Base64 encoded XML. ' +
+                        'For deflated SAML responses, please use a more comprehensive tool.';
+                }
+            } catch (e) {
+                output.innerHTML = 'Error: Invalid Base64 encoding or malformed SAML response';
+            }
+        }
+
+        function formatAndDisplay(xml) {
+            const output = document.getElementById('output');
+            try {
+                // Parse XML string
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xml, 'text/xml');
+                
+                // Check for parsing errors
+                if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                    output.innerHTML = 'Error: Invalid XML format';
+                    return;
+                }
+                
+                // Format XML with indentation
+                const serializer = new XMLSerializer();
+                const formatted = formatXML(serializer.serializeToString(xmlDoc));
+                
+                // Display formatted XML
+                output.innerHTML = formatted
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            } catch (e) {
+                output.innerHTML = 'Error: Failed to parse XML';
+            }
+        }
+
+        function formatXML(xml) {
+            let formatted = '';
+            let indent = '';
+            const tab = '    ';
+            xml.split(/>\s*</).forEach(function(node) {
+                if (node.match(/^\/\w/)) indent = indent.substring(tab.length); // Decrease indent
+                formatted += indent + '<' + node + '>\r\n';
+                if (node.match(/^<?\w[^>]*[^\/]$/)) indent += tab; // Increase indent
+            });
+            return formatted.substring(1, formatted.length-3);
+        }
+
+        function copyToClipboard() {
+            const output = document.getElementById('output');
+            const text = output.innerText;
+            
+            // Modern clipboard API
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    // Provide visual feedback
+                    const copyButton = document.querySelector('button:nth-of-type(2)');
+                    const originalText = copyButton.textContent;
+                    copyButton.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyButton.textContent = originalText;
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Failed to copy text: ', err);
+                    alert('Failed to copy to clipboard');
+                });
+        }
+
+        function selectAll() {
+            const output = document.getElementById('output');
+            const range = document.createRange();
+            range.selectNodeContents(output);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        // Theme handling
+        function applyTheme() {
+            try {
+                const theme = window.parent.document.documentElement.getAttribute('data-theme');
+                document.documentElement.setAttribute('data-theme', theme || 'light');
+            } catch (e) {
+                const theme = localStorage.getItem('theme') || 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        }
+
+        // Initial theme application
+        document.addEventListener('DOMContentLoaded', () => {
+            applyTheme();
+            
+            // Listen for theme change messages from parent
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'themeChange') {
+                    document.documentElement.setAttribute('data-theme', event.data.theme);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

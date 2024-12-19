@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnostic File Upload</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --card-bg: #f8f9fa;
+            --border-color: #e0e0e0;
+            --hover-bg: #f5f5f5;
+            --button-bg: #4CAF50;
+            --button-hover: #45a049;
+            --upload-zone-bg: #f8f9fa;
+            --progress-bg: #f0f0f0;
+            --progress-fill: #4CAF50;
+            --input-bg: #ffffff;
+            --success-color: #4CAF50;
+            --error-color: #ff4444;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #2F3640;
+            --text-color: #ffffff;
+            --card-bg: #2F3640;
+            --border-color: #4B5563;
+            --hover-bg: #404B5A;
+            --button-bg: #4CAF50;
+            --button-hover: #45a049;
+            --upload-zone-bg: #374151;
+            --progress-bg: #374151;
+            --progress-fill: #4CAF50;
+            --input-bg: #374151;
+            --success-color: #4CAF50;
+            --error-color: #ff6b6b;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .upload-container {
+            border: 2px dashed var(--border-color);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            background-color: var(--upload-zone-bg);
+            transition: background-color 0.3s ease;
+        }
+
+        .upload-container:hover {
+            background-color: var(--hover-bg);
+        }
+
+        input[type="text"] {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            border-radius: 4px;
+            width: 200px;
+            margin: 10px 0;
+        }
+
+        input[type="file"] {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: var(--button-hover);
+        }
+
+        .file-list {
+            margin: 10px 0;
+            color: var(--text-color);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: var(--progress-bg);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+            border: 1px solid var(--border-color);
+        }
+
+        .progress {
+            width: 0%;
+            height: 100%;
+            background-color: var(--progress-fill);
+            transition: width 0.3s ease;
+        }
+
+        .error {
+            color: var(--error-color);
+            margin: 5px 0;
+        }
+
+        .success {
+            color: var(--success-color);
+            margin: 5px 0;
+        }
+
+        h1 {
+            color: var(--text-color);
+            margin-bottom: 20px;
+        }
+
+        label {
+            color: var(--text-color);
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Diagnostic File Upload</h1>
+    
+    <div>
+        <label for="caseNumber">Case Number:</label>
+        <input type="text" id="caseNumber" required>
+    </div>
+
+    <div class="upload-container" id="dropZone">
+        <p>Drag & drop files here or</p>
+        <input type="file" id="fileInput" multiple>
+        <div class="file-list" id="fileList"></div>
+    </div>
+
+    <button onclick="uploadFiles()">Upload Files</button>
+    <div id="uploadStatus"></div>
+
+    <script>
+        const baseUrl = 'https://diag-upload.cribl.io';
+        let selectedFiles = [];
+
+        // File input change handler
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            selectedFiles = Array.from(e.target.files);
+            updateFileList();
+        });
+
+        // Drag and drop handlers
+        const dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '#f0f0f0';
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '';
+            selectedFiles = Array.from(e.dataTransfer.files);
+            updateFileList();
+        });
+
+        function updateFileList() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = selectedFiles
+                .map(file => `<div>${file.name} (${formatFileSize(file.size)})</div>`)
+                .join('');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function uploadFiles() {
+            const caseNumber = document.getElementById('caseNumber').value.trim();
+            const statusDiv = document.getElementById('uploadStatus');
+            
+            // Validation
+            if (!caseNumber) {
+                statusDiv.innerHTML = '<div class="error">Please enter a case number</div>';
+                return;
+            }
+            if (selectedFiles.length === 0) {
+                statusDiv.innerHTML = '<div class="error">Please select files to upload</div>';
+                return;
+            }
+
+            statusDiv.innerHTML = ''; // Clear previous status
+
+            for (const file of selectedFiles) {
+                const progressDiv = document.createElement('div');
+                progressDiv.innerHTML = `
+                    <div>${file.name}</div>
+                    <div class="progress-bar">
+                        <div class="progress"></div>
+                    </div>
+                `;
+                statusDiv.appendChild(progressDiv);
+                const progressBar = progressDiv.querySelector('.progress');
+
+                try {
+                    const uploadUrl = `${baseUrl}/${caseNumber}/${file.name}`;
+                    const xhr = new XMLHttpRequest();
+                    
+                    // Progress handling
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) {
+                            const percentComplete = (e.loaded / e.total) * 100;
+                            progressBar.style.width = percentComplete + '%';
+                        }
+                    };
+
+                    await new Promise((resolve, reject) => {
+                        xhr.open('PUT', uploadUrl);
+                        xhr.setRequestHeader('X-Cribl-Diag-Case', caseNumber);
+                        
+                        xhr.onload = () => {
+                            if (xhr.status === 200) {
+                                progressDiv.innerHTML += '<div style="color: green;">Upload successful</div>';
+                                resolve();
+                            } else {
+                                reject(new Error(`Upload failed: ${xhr.status}`));
+                            }
+                        };
+                        
+                        xhr.onerror = () => reject(new Error('Network error'));
+                        xhr.send(file);
+                    });
+
+                } catch (error) {
+                    progressDiv.innerHTML += `<div class="error">Error: ${error.message}</div>`;
+                }
+            }
+        }
+
+        function applyTheme() {
+            try {
+                const theme = window.parent.document.documentElement.getAttribute('data-theme');
+                document.documentElement.setAttribute('data-theme', theme || 'light');
+            } catch (e) {
+                const theme = localStorage.getItem('theme') || 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        }
+
+        // Initial theme application
+        document.addEventListener('DOMContentLoaded', () => {
+            applyTheme();
+            
+            // Listen for theme change messages from parent
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'themeChange') {
+                    document.documentElement.setAttribute('data-theme', event.data.theme);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
